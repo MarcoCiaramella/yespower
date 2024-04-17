@@ -122,19 +122,63 @@
 #undef PREFETCH
 #endif
 
-typedef union {
-	uint32_t w[16];
-	uint64_t d[8];
-#ifdef __SSE2__
-	__m128i q[4];
+typedef union
+{
+	uint32_t d[16];
+	uint64_t q[8];
+#if defined(__SSE2__) || defined(__ARM_NEON)
+	v128_t m128[4];
+#endif
+#if defined(__AVX2__)
+   __m256i m256[2];
+#endif
+#if defined(__AVX512F__) && defined(__AVX512VL__) && defined(__AVX512DQ__) && defined(__AVX512BW__)
+   __m512i m512;
 #endif
 } salsa20_blk_t;
 
 static inline void salsa20_simd_shuffle(const salsa20_blk_t *Bin,
     salsa20_blk_t *Bout)
 {
+#if defined(YESPOWER_USE_AVX512) && defined(__AVX512F__) && defined(__AVX512VL__) && defined(__AVX512DQ__) && defined(__AVX512BW__)
+  
+  Bout->m512 = _mm512_permutexvar_epi32( simd_shuffle_index, Bin->m512 );
+
+#elif defined(__AVX2__)
+
+#if defined(__AVX512VL__)
+
+  Bout->m256[0] = _mm256_permutex2var_epi32( Bin->m256[0], simd_shuffle_index,
+                                             Bin->m256[1] );
+  Bout->m256[1] = _mm256_permutex2var_epi32( Bin->m256[1], simd_shuffle_index,
+                                             Bin->m256[0] );
+  
+#else
+
+  __m256i t0 = _mm256_permutevar8x32_epi32( Bin->m256[0], simd_shuffle_index );
+  __m256i t1 = _mm256_permutevar8x32_epi32( Bin->m256[1], simd_shuffle_index );
+  Bout->m256[0] = _mm256_blend_epi32( t1, t0, 0x93 );
+  Bout->m256[1] = _mm256_blend_epi32( t1, t0, 0x6c );
+  
+#endif
+  
+#elif defined(__SSE4_1__)
+
+  v128_t t0 = _mm_blend_epi16( Bin->m128[0], Bin->m128[1], 0xcc );
+  v128_t t1 = _mm_blend_epi16( Bin->m128[0], Bin->m128[1], 0x33 );
+  v128_t t2 = _mm_blend_epi16( Bin->m128[2], Bin->m128[3], 0xcc );
+  v128_t t3 = _mm_blend_epi16( Bin->m128[2], Bin->m128[3], 0x33 );
+  Bout->m128[0] = _mm_blend_epi16( t0, t2, 0xf0 );
+  Bout->m128[1] = _mm_blend_epi16( t1, t3, 0x3c );
+  Bout->m128[2] = _mm_blend_epi16( t0, t2, 0x0f );
+  Bout->m128[3] = _mm_blend_epi16( t1, t3, 0xc3 );
+
+#else
+
+//TODO  defined SSE2/Neon version using blendv
+  
 #define COMBINE(out, in1, in2) \
-	Bout->d[out] = Bin->w[in1 * 2] | ((uint64_t)Bin->w[in2 * 2 + 1] << 32);
+	Bout->q[out] = Bin->d[in1 * 2] | ((uint64_t)Bin->d[in2 * 2 + 1] << 32);
 	COMBINE(0, 0, 2)
 	COMBINE(1, 5, 7)
 	COMBINE(2, 2, 4)
@@ -144,7 +188,12 @@ static inline void salsa20_simd_shuffle(const salsa20_blk_t *Bin,
 	COMBINE(6, 6, 0)
 	COMBINE(7, 3, 5)
 #undef COMBINE
+
+#endif   
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////// QUI ////////////////////////////////////////////////////////
 
 static inline void salsa20_simd_unshuffle(const salsa20_blk_t *Bin,
     salsa20_blk_t *Bout)
