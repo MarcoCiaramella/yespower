@@ -112,6 +112,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "simd.h"
+
 #include "insecure_memzero.h"
 #include "sha256.h"
 #include "sysendian.h"
@@ -196,7 +198,7 @@ static inline void salsa20_simd_shuffle(const salsa20_blk_t *Bin,
 //TODO  defined SSE2/Neon version using blendv
   
 #define COMBINE(out, in1, in2) \
-	Bout->q[out] = Bin->d[in1 * 2] | ((uint64_t)Bin->d[in2 * 2 + 1] << 32);
+	Bout->d[out] = Bin->d[in1 * 2] | ((uint64_t)Bin->d[in2 * 2 + 1] << 32);
 	COMBINE(0, 0, 2)
 	COMBINE(1, 5, 7)
 	COMBINE(2, 2, 4)
