@@ -50,15 +50,33 @@
  * XOP, some slowdown is sometimes observed on Intel CPUs with AVX.
  */
 #ifdef __XOP__
-#warning "Note: XOP is enabled.  That's great."
-#elif defined(__AVX__)
-#warning "Note: AVX is enabled.  That's OK."
-#elif defined(__SSE2__)
-#warning "Note: AVX and XOP are not enabled.  That's OK."
-#elif defined(__x86_64__) || defined(__i386__)
-#warning "SSE2 not enabled.  Expect poor performance."
+#warning "XOP enabled"
 #else
-#warning "Note: building generic code for non-x86.  That's OK."
+#warning "XOP not enabled"
+#endif
+
+#ifdef __SSE__
+#warning "SSE enabled"
+#else
+#warning "SSE not enabled"
+#endif
+
+#ifdef __SSE2__
+#warning "SSE2 enabled"
+#else
+#warning "SSE2 not enabled"
+#endif
+
+#ifdef __SSE4_1__
+#warning "SSE4_1 enabled"
+#else
+#warning "SSE4_1 not enabled"
+#endif
+
+#ifdef __AVX__
+#warning "AVX enabled"
+#else
+#warning "AVX not enabled"
 #endif
 
 /*
@@ -124,8 +142,8 @@
 
 typedef union
 {
-	uint32_t d[16];
-	uint64_t q[8];
+	uint32_t w[16];
+	uint64_t d[8];
 #if defined(__SSE2__) || defined(__ARM_NEON)
 	v128_t m128[4];
 #endif
@@ -218,9 +236,9 @@ static inline void salsa20_simd_unshuffle(const salsa20_blk_t *Bin,
 #define DECL_Y \
 	__m128i Y0, Y1, Y2, Y3;
 #define READ_X(in) \
-	X0 = (in).q[0]; X1 = (in).q[1]; X2 = (in).q[2]; X3 = (in).q[3];
+	X0 = (in).m128[0]; X1 = (in).m128[1]; X2 = (in).m128[2]; X3 = (in).m128[3];
 #define WRITE_X(out) \
-	(out).q[0] = X0; (out).q[1] = X1; (out).q[2] = X2; (out).q[3] = X3;
+	(out).m128[0] = X0; (out).m128[1] = X1; (out).m128[2] = X2; (out).m128[3] = X3;
 
 #ifdef __XOP__
 #define ARX(out, in1, in2, s) \
@@ -259,10 +277,10 @@ static inline void salsa20_simd_unshuffle(const salsa20_blk_t *Bin,
 #define SALSA20_wrapper(out, rounds) { \
 	__m128i Z0 = X0, Z1 = X1, Z2 = X2, Z3 = X3; \
 	rounds \
-	(out).q[0] = X0 = _mm_add_epi32(X0, Z0); \
-	(out).q[1] = X1 = _mm_add_epi32(X1, Z1); \
-	(out).q[2] = X2 = _mm_add_epi32(X2, Z2); \
-	(out).q[3] = X3 = _mm_add_epi32(X3, Z3); \
+	(out).m128[0] = X0 = _mm_add_epi32(X0, Z0); \
+	(out).m128[1] = X1 = _mm_add_epi32(X1, Z1); \
+	(out).m128[2] = X2 = _mm_add_epi32(X2, Z2); \
+	(out).m128[3] = X3 = _mm_add_epi32(X3, Z3); \
 }
 
 /**
@@ -281,22 +299,22 @@ static inline void salsa20_simd_unshuffle(const salsa20_blk_t *Bin,
 	SALSA20_wrapper(out, SALSA20_8ROUNDS)
 
 #define XOR_X(in) \
-	X0 = _mm_xor_si128(X0, (in).q[0]); \
-	X1 = _mm_xor_si128(X1, (in).q[1]); \
-	X2 = _mm_xor_si128(X2, (in).q[2]); \
-	X3 = _mm_xor_si128(X3, (in).q[3]);
+	X0 = _mm_xor_si128(X0, (in).m128[0]); \
+	X1 = _mm_xor_si128(X1, (in).m128[1]); \
+	X2 = _mm_xor_si128(X2, (in).m128[2]); \
+	X3 = _mm_xor_si128(X3, (in).m128[3]);
 
 #define XOR_X_2(in1, in2) \
-	X0 = _mm_xor_si128((in1).q[0], (in2).q[0]); \
-	X1 = _mm_xor_si128((in1).q[1], (in2).q[1]); \
-	X2 = _mm_xor_si128((in1).q[2], (in2).q[2]); \
-	X3 = _mm_xor_si128((in1).q[3], (in2).q[3]);
+	X0 = _mm_xor_si128((in1).m128[0], (in2).m128[0]); \
+	X1 = _mm_xor_si128((in1).m128[1], (in2).m128[1]); \
+	X2 = _mm_xor_si128((in1).m128[2], (in2).m128[2]); \
+	X3 = _mm_xor_si128((in1).m128[3], (in2).m128[3]);
 
 #define XOR_X_WRITE_XOR_Y_2(out, in) \
-	(out).q[0] = Y0 = _mm_xor_si128((out).q[0], (in).q[0]); \
-	(out).q[1] = Y1 = _mm_xor_si128((out).q[1], (in).q[1]); \
-	(out).q[2] = Y2 = _mm_xor_si128((out).q[2], (in).q[2]); \
-	(out).q[3] = Y3 = _mm_xor_si128((out).q[3], (in).q[3]); \
+	(out).m128[0] = Y0 = _mm_xor_si128((out).m128[0], (in).m128[0]); \
+	(out).m128[1] = Y1 = _mm_xor_si128((out).m128[1], (in).m128[1]); \
+	(out).m128[2] = Y2 = _mm_xor_si128((out).m128[2], (in).m128[2]); \
+	(out).m128[3] = Y3 = _mm_xor_si128((out).m128[3], (in).m128[3]); \
 	X0 = _mm_xor_si128(X0, Y0); \
 	X1 = _mm_xor_si128(X1, Y1); \
 	X2 = _mm_xor_si128(X2, Y2); \
