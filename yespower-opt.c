@@ -212,12 +212,44 @@ static inline void salsa20_simd_shuffle(const salsa20_blk_t *Bin,
 #endif   
 }
 
-
-///////////////////////////////////////////////////////////////////////////////////// QUI ////////////////////////////////////////////////////////
-
 static inline void salsa20_simd_unshuffle(const salsa20_blk_t *Bin,
     salsa20_blk_t *Bout)
 {
+#if defined(YESPOWER_USE_AVX512) && defined(__AVX512F__) && defined(__AVX512VL__) && defined(__AVX512DQ__) && defined(__AVX512BW__)
+
+  Bout->m512 = _mm512_permutexvar_epi32( simd_unshuffle_index, Bin->m512 );    
+
+#elif defined(__AVX2__)
+  
+#if defined(__AVX512VL__)
+  
+  Bout->m256[0] = _mm256_permutex2var_epi32( Bin->m256[0], simd_unshuffle_index,
+                                             Bin->m256[1] );
+  Bout->m256[1] = _mm256_permutex2var_epi32( Bin->m256[1], simd_unshuffle_index,
+                                             Bin->m256[0] );
+
+#else  
+
+  __m256i t0 = _mm256_permutevar8x32_epi32( Bin->m256[0], simd_shuffle_index );
+  __m256i t1 = _mm256_permutevar8x32_epi32( Bin->m256[1], simd_shuffle_index );
+  Bout->m256[0] = _mm256_blend_epi32( t1, t0, 0x39 );
+  Bout->m256[1] = _mm256_blend_epi32( t1, t0, 0xc6 );
+
+#endif
+
+#elif defined(__SSE4_1__)
+
+  v128_t t0 = _mm_blend_epi16( Bin->m128[0], Bin->m128[2], 0xf0 );
+  v128_t t1 = _mm_blend_epi16( Bin->m128[0], Bin->m128[2], 0x0f );
+  v128_t t2 = _mm_blend_epi16( Bin->m128[1], Bin->m128[3], 0x3c );
+  v128_t t3 = _mm_blend_epi16( Bin->m128[1], Bin->m128[3], 0xc3 );
+  Bout->m128[0] = _mm_blend_epi16( t0, t2, 0xcc );
+  Bout->m128[1] = _mm_blend_epi16( t0, t2, 0x33 );
+  Bout->m128[2] = _mm_blend_epi16( t1, t3, 0xcc );
+  Bout->m128[3] = _mm_blend_epi16( t1, t3, 0x33 );
+
+#else
+
 #define UNCOMBINE(out, in1, in2) \
 	Bout->w[out * 2] = Bin->d[in1]; \
 	Bout->w[out * 2 + 1] = Bin->d[in2] >> 32;
@@ -230,6 +262,8 @@ static inline void salsa20_simd_unshuffle(const salsa20_blk_t *Bin,
 	UNCOMBINE(6, 6, 4)
 	UNCOMBINE(7, 3, 1)
 #undef UNCOMBINE
+
+#endif
 }
 
 #ifdef __SSE2__
